@@ -1,0 +1,46 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php_version:
+          - 7.1
+          - 7.2
+          - 7.3
+          - 7.4
+    container:
+      image: ubuntu:18.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install OpenCC
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y software-properties-common libopencc-dev make checkinstall
+      - name: Install php
+        run: |
+          DEBIAN_FRONTEND=noninteractive add-apt-repository ppa:ondrej/php
+          DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y php${{ matrix.php_version }}-dev
+      - name: Build opencc4php
+        run: |
+          phpize
+          ./configure --quiet
+          make
+      - name: Tag name
+        id: tag_name
+        run: |
+          echo ::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}
+      - name: Build DEB
+        run: |
+          checkinstall --pkgname=opencc4php --pkgversion=${{ steps.tag_name.outputs.SOURCE_TAG }} --pkgrelease=php${{ matrix.php_version }}
+      - name: Release
+        uses: fnkr/github-action-ghr@v1
+        env:
+          GHR_PATH: ./opencc4php_${{ steps.tag_name.outputs.SOURCE_TAG }}-php${{ matrix.php_version }}_amd64.deb
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
